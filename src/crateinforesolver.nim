@@ -2,6 +2,7 @@ import strutils
 import asyncdispatch, httpclient
 from json import parseJson, to
 import tables
+import options
 
 type CrateResponse = object
   name*, vers*: string
@@ -20,21 +21,24 @@ proc getCratePath*(name: string):string =
 
     result = a & "/" & b & "/" & name
 
-proc getCrateInfo*(name: string): Future[CrateInfo] {.async.} =
+proc getCrateInfo*(name: string): Future[Option[CrateInfo]] {.async.} =
   let client = newAsyncHttpClient()
   let githubUrl = "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/";
 
-  let cratePath = getCratePath(name)
-  let url = githubUrl & "/" & cratePath
-  let response = await client.getContent(url)
-  let splitted = response.split("\n")
-  let latest = splitted[splitted.len - 2]
+  try:
+    let cratePath = getCratePath(name)
+    let url = githubUrl & "/" & cratePath
+    let response = await client.getContent(url)
+    let splitted = response.split("\n")
+    let latest = splitted[splitted.len - 2]
 
-  let crateResponse = parseJson(latest).to(CrateResponse)
-  var features = newSeq[string]()
-  for feature in crateResponse.features.keys:
-    features.add(feature)
+    let crateResponse = parseJson(latest).to(CrateResponse)
+    var features = newSeq[string]()
+    for feature in crateResponse.features.keys:
+      features.add(feature)
 
-  result = CrateInfo(name: crateResponse.name,
-    version: crateResponse.vers,
-    features: features)
+    result = some(CrateInfo(name: crateResponse.name,
+      version: crateResponse.vers,
+      features: features))
+  except HttpRequestError:
+    result = none(CrateInfo)
