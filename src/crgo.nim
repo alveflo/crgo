@@ -1,3 +1,4 @@
+import asyncdispatch
 import crgo/runner
 
-run()
+waitFor run()
