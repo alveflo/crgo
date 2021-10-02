@@ -12,7 +12,7 @@ Examples:
   crgo add pkg --version 1.0.0 --features "foo, bar"
 """
 
-proc parse* =
+proc run* =
   let args = docopt(doc, version = "Crgo 1.0")
 
   if args["add"]:
