@@ -12,7 +12,7 @@ type CrateInfo* = object
   name*, version*: string
   features*: seq[string]
 
-proc getCratePath*(name: string):string =
+proc getCratePath*(name: string): string =
   if name.len < 4:
     result = intToStr(name.len) & "/" & name
   else:
