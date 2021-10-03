@@ -21,7 +21,18 @@ proc getCratePath*(name: string): string =
 
     result = a & "/" & b & "/" & name
 
-proc getCrateInfo*(name: string): Future[Option[CrateInfo]] {.async.} =
+proc ResolveResponseEntry(response: string, version: Option[string]): Option[string] =
+  let splitted = response.split("\n")
+
+  if version.isNone:
+    return some(splitted[splitted.len - 2])
+  else:
+    for line in splitted:
+      if line.contains("\"vers\":\"$#\"".format(version.get())):
+        return some(line)
+  return none(string)
+
+proc getCrateInfo*(name: string, version: Option[string]): Future[Option[CrateInfo]] {.async.} =
   let client = newAsyncHttpClient()
   let githubUrl = "https://raw.githubusercontent.com/rust-lang/crates.io-index/master/";
 
@@ -29,16 +40,22 @@ proc getCrateInfo*(name: string): Future[Option[CrateInfo]] {.async.} =
     let cratePath = getCratePath(name)
     let url = githubUrl & "/" & cratePath
     let response = await client.getContent(url)
-    let splitted = response.split("\n")
-    let latest = splitted[splitted.len - 2]
 
-    let crateResponse = parseJson(latest).to(CrateResponse)
+    let entry = ResolveResponseEntry(response, version)
+    if entry.isNone and version.isSome:
+      echo "Version '$#' were not found for package '$#'."
+        .format(version.get(), name)
+      return none(CrateInfo)
+    elif entry.isNone:
+      return none(CrateInfo)
+
+    let crateResponse = parseJson(entry.get()).to(CrateResponse)
     var features = newSeq[string]()
     for feature in crateResponse.features.keys:
       features.add(feature)
 
-    result = some(CrateInfo(name: crateResponse.name,
+    return some(CrateInfo(name: crateResponse.name,
       version: crateResponse.vers,
       features: features))
   except HttpRequestError:
-    result = none(CrateInfo)
+    return none(CrateInfo)
